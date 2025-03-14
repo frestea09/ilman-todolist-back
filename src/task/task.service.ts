@@ -1,11 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TaskDto } from './entities/task.entity';
+import { plainToInstance } from 'class-transformer';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from '@nestjs/cache-manager';
 
 @Injectable()
 export class TaskService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) {}
   create(createTaskDto: CreateTaskDto) {
     return this.prismaService.task.create({
       data: {
@@ -17,12 +24,24 @@ export class TaskService {
     });
   }
 
-  findAll() {
-    return this.prismaService.task.findMany();
+  async findAll() {
+    const cacheKey = 'task_list';
+    const cachedTask = await this.cacheManager.get(cacheKey);
+    if (cachedTask) {
+      console.log('Data dari cache:', cachedTask);
+      return plainToInstance(TaskDto, cachedTask, {
+        excludeExtraneousValues: true,
+      });
+    }
+    const results = await this.prismaService.task.findMany();
+    await this.cacheManager.set(cacheKey, results); // Cache akan bertahan 60 detik
+    console.log('Data dari database:', results);
+    return plainToInstance(TaskDto, results, { excludeExtraneousValues: true });
   }
 
-  findOne(id: number) {
-    return this.prismaService.task.findUnique({ where: { id } });
+  async findOne(id: number) {
+    const result = await this.prismaService.task.findUnique({ where: { id } });
+    return plainToInstance(TaskDto, result, { excludeExtraneousValues: true });
   }
 
   update(id: number, updateTaskDto: UpdateTaskDto) {

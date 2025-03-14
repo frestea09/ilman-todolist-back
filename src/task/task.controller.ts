@@ -6,15 +6,18 @@ import {
   Patch,
   Param,
   Delete,
+  Version,
 } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { TaskDto } from './entities/task.entity';
+import { CacheTTL } from '@nestjs/cache-manager';
 
 @Controller('task')
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
-
+  @Version('1')
   @Post()
   create(@Body() createTaskDto: CreateTaskDto) {
     return this.taskService.create(createTaskDto);
@@ -25,9 +28,10 @@ export class TaskController {
     return this.taskService.findAll();
   }
 
+  @CacheTTL(40)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.taskService.findOne(+id);
+  findOne(@Param() params: TaskDto) {
+    return this.taskService.findOne(+params?.id);
   }
 
   @Patch(':id')
